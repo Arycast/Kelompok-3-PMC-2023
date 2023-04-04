@@ -5,4 +5,4 @@
 - Fauzan Ibrahim            13221030
 - Muhammad Ainun Naim       13221042
 
-# Communication With ESP 32 and Lightweight Cryptography
+# GRAIN-128AEAD Algorithm Implementation on ESP32 For Two Factor Authentication
