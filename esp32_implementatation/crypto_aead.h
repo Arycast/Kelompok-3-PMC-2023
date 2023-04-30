@@ -1,4 +1,3 @@
-// added header guard (07/04/23)
 #ifndef CRYPTO_AEAD_H
 #define CRYPTO_AEAD_H
 
