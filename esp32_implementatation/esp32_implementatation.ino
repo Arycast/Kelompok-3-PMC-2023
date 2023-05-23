@@ -34,31 +34,31 @@ unsigned char ad[8]= {'0','1','2','3','4','5','6','7'};
 unsigned char new_data[8];
 unsigned char data[25];
 char data2[25];
-const char topic[] = "thelamps";
+unsigned char the_topic[] = "thelamps";
 
 unsigned long long mlen, adlen;
 unsigned long long clen, mlen2;
 
 // Variables for MQTT
-const char* ssid = "K4I";
-const char* password =  "senirokalil";
+const char* ssid = "E915";
+const char* password =  "aileron14";
 const char* mqttServer = "broker.mqtt-dashboard.com";
 const int mqttPort = 1883;
-const char* outTopic = "esp/kel3";
+
+const char* masterTopic = "esp/kel3/afee5de16c1badcb3dc5dfa965a";
+const char* outTopic = "esp/kel3/gate";
+
+unsigned long master_time = 0;
 
 short currstep = 0;
-String out,temp;
+String out,temp,userID;
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 long prevTime = 0;
 
-String char_to_string(String outString, unsigned char* inChar, int lenArr) {
-  outString = "";
-  for (int i = 0; i < lenArr; i++) {
-    outString += String(inChar[i]);
-  }
-  return outString;
+void char_to_hex (char* origin, unsigned char* dest) {
+  
 }
 
 String hex_to_string(String outString, unsigned char* inHex, int lenArr) {
@@ -72,11 +72,6 @@ String hex_to_string(String outString, unsigned char* inHex, int lenArr) {
   return outString;
 }
 
-void encrypt() {
-  mlen = sizeof(msg)/sizeof(msg[0]);
-  adlen = sizeof(ad)/sizeof(ad[0]);
-  crypto_aead_encrypt(cipher, &clen, msg, mlen, ad, adlen, NULL, nonce, key);
-}
 
 void random_msg() {
   for (int i = 0; i < 8; i++) {
@@ -86,11 +81,7 @@ void random_msg() {
 
 void setup_wifi() {
   delay(10);
-  // We start by connecting to a WiFi network
   Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-
   WiFi.begin(ssid, password);
 
   while (WiFi.status() != WL_CONNECTED) {
@@ -102,11 +93,13 @@ void setup_wifi() {
 
   Serial.println("");
   Serial.println("WiFi connected");
-  // Serial.println("IP address: ");
-  // Serial.println(WiFi.localIP());
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
+  memset(cipher,'\0',25);
+  memset(data,'\0',25);
+  memset(data2,'\0',25); // Emptying array
+  
   Serial.print("Message arrived [");
   Serial.print(topic);
   Serial.print("] ");
@@ -116,54 +109,76 @@ void callback(char* topic, byte* payload, unsigned int length) {
     Serial.print((char)data[i]);
   }
   Serial.println();
-  
-  // Serial.println(strtok((char*)data,","));     THIS WORKK!!
-
-  if (strcmp(strtok((char*)data, ","),"connect") == 0) {
-    // Copy userID as AD for encrypt
-    strcpy((char*)ad,strtok(NULL,","));
-    out = "Decrypt this!";
-    client.publish(outTopic, out.c_str());
-    delay(10);
-    encrypt();
-    out = hex_to_string(out,cipher,clen);
-    client.publish(outTopic, out.c_str());
-    currstep++;
-  }
-  else if (currstep == 1) {
-    //Serial.println(strcmp(strtok(NULL,","),(char*)msg) == 0);
-    temp = "decrypt," + char_to_string(out,msg,8);
-    out = "";
-    for (int i = 0; i < length; i++) {
-      out += String(data2[i]);
-    }
     
-    if (strcmp(out.c_str(),temp.c_str()) == 0){
+  
+  if (currstep == 0) {
+    if (strcmp(strtok(data2, ","),"connect") == 0) {
+      strcpy((char*)ad, strtok(NULL,","));
+      userID = String((const char*)ad);
+      out = "Does " + userID + " may have acces to your IoT network?";
+      //Serial.println(userID);
+      client.publish(masterTopic, out.c_str());
+      delay(10);
+      
+      client.subscribe(masterTopic);
+      master_time = millis();
       currstep++;
     }
-  }
-  else if (currstep == 2) {
-    out = "";
-    for (int i = 0; i < length; i++) {
-      out += String(data2[i]);
-    }
-    if (strcmp(out.c_str(),"answer,grain") == 0){
-      currstep++;
-      out = "CORRECT!!";
-      client.publish(outTopic, out.c_str());
-      out = "Decrypt this message to append to base topic";
-      client.publish(outTopic, out.c_str()); 
-    }
-  }
-  else if (currstep == 3) {
-    mlen = sizeof(topic)/sizeof(topic[0]) - 1;
-    adlen = sizeof(ad)/sizeof(ad[0]);
-    crypto_aead_encrypt(cipher, &clen, (unsigned char*)topic, mlen, ad, adlen, NULL, nonce, key);
-    out = hex_to_string(out, cipher, clen);
-    client.publish(outTopic, out.c_str());
-    currstep++;
   }
   
+  else if(currstep == 1) {
+    if (String((const char*)data2) == "answer,y") {
+      if (millis() - master_time < 5000) {
+        
+        out = "Decrypt this message to append to base topic";
+        client.publish(outTopic, out.c_str());
+        /*
+        for (int i = 0; i < 8; i++) {
+          Serial.print(the_topic[i],HEX);
+        }Serial.println();
+        for (int i = 0; i < 8; i++) {
+          Serial.print(ad[i],HEX);
+        }Serial.println();
+        for (int i = 0; i < 12; i++) {
+          Serial.print(nonce[i],HEX);
+        }Serial.println();
+        for (int i = 0; i < 16; i++) {
+          Serial.print(key[i],HEX);
+        }Serial.println();
+        //Serial.print("\tThe length\t");
+        */
+        mlen = sizeof(the_topic)/sizeof(the_topic[0]) - 1;
+        adlen = sizeof(ad)/sizeof(ad[0]);
+        //Serial.println(adlen);
+
+        crypto_aead_encrypt(cipher, &clen, (unsigned char*)the_topic, mlen, ad, adlen, NULL, nonce, key);
+        out = hex_to_string(out, cipher, clen);
+        client.publish(outTopic, out.c_str());
+        for(int i = 0; i < 25; i++) {
+          Serial.print(cipher[i],HEX);
+        }
+        Serial.println();
+        Serial.println(clen);
+        currstep++;
+      }
+      else {
+        out = "Sorry you're out of time. Please retry again";
+        client.publish(masterTopic,out.c_str());
+        client.publish(outTopic, out.c_str());
+        currstep = 0;
+        reconnect();
+      }
+    }
+    else {
+      out = "Sorry you're denied entry.  Please retry again";
+      client.publish(outTopic,out.c_str());
+      currstep = 0;
+      reconnect();
+    }
+    client.subscribe(outTopic);
+    delay(50);
+  }
+
   Serial.print("Success: ");
   Serial.print(currstep);
   Serial.println();
@@ -192,10 +207,6 @@ void reconnect() {
   }
 }
 
-void decrypt() {
-  //crypto_aead_decrypt(msg_dec, &mlen2, NULL, cipher, clen, ad, adlen, nonce, key);
-}
-
 void setup() {
   Serial.begin(115200);
   
@@ -205,7 +216,33 @@ void setup() {
   if (!client.connected()) {
     reconnect();
   }
-  client.publish(outTopic, "Connection Made");
+  client.publish(masterTopic, "Connection Made");
+  mlen = sizeof(the_topic)/sizeof(the_topic[0]) - 1;
+  adlen = sizeof(ad)/sizeof(ad[0]);
+  
+  /*
+  for (int i = 0; i < 8; i++) {
+    Serial.print(the_topic[i],HEX);
+  }Serial.println();
+  for (int i = 0; i < 8; i++) {
+    Serial.print(ad[i],HEX);
+  }Serial.println();
+  for (int i = 0; i < 12; i++) {
+    Serial.print(nonce[i],HEX);
+  }Serial.println();
+  for (int i = 0; i < 16; i++) {
+    Serial.print(key[i],HEX);
+  }Serial.println();
+  //Serial.print("\tThe length\t");
+  //Serial.println(adlen);
+  */
+  
+  crypto_aead_encrypt(cipher, &clen, (unsigned char*)the_topic, mlen, ad, adlen, NULL, nonce, key);
+  for(int i = 0; i < 25; i++) {
+    Serial.print(cipher[i],HEX);
+  }
+  Serial.println();
+  Serial.println(clen);
 }
 
 void loop() {
